@@ -3,16 +3,23 @@
 #include "drv/vga.h"
 #include "i386/pic.h"
 #include "i386/pit.h"
+#include "mm/pmm.h"
+
 void kmain() {
     kprintf("GDT Initing...\n");
     init_gdt();
     kprintf("GDT OK\n");
+
     kprintf("IDT Initing...\n");
     idt_install();
     pic_remap();
     pit_init();
     kprintf("IDT OK\n");
+
+    pmm_init();
+
     asm volatile("sti");
+
     while (1) {
 	asm volatile("sti; hlt");
     }

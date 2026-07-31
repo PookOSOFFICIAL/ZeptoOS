@@ -1,0 +1,24 @@
+#pragma once
+typedef struct {
+    uint32_t flags;
+    uint32_t mem_lower;
+    uint32_t mem_upper;
+    uint32_t boot_device;
+    uint32_t cmdline;
+    uint32_t mods_count;
+    uint32_t mods_addr;
+    uint32_t elf_sec;
+    uint32_t elf_num;
+    uint32_t elf_size;
+    uint32_t elf_shndx;
+    uint32_t mmap_length;
+    uint32_t mmap_addr;
+    uint32_t drives_length;
+    uint32_t drives_addr;
+} multiboot_info_t;
+typedef struct {
+    uint32_t size;
+    uint64_t base_addr;
+    uint64_t length;
+    uint32_t type;
+} multiboot_mmap_entry_t;
