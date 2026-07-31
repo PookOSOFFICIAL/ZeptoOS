@@ -2,7 +2,7 @@ DIST = build/
 CSRC = $(shell find kernel -name "*.c")
 COBJ = $(CSRC:.c=.o)
 ASSRC = $(shell find kernel -name "*.s")
-ASOBJ = $(ASSRC:.s=.o)
+ASOBJ = $(patsubst %.s,%.o,$(ASSRC))
 SRC = $(CSRC) $(ASSRC)
 OBJ = $(COBJ) $(ASOBJ)
 CC = clang -target i386-elf

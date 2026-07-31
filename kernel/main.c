@@ -1,15 +1,20 @@
 #include "i386/gdt.h"
-const char* str = "Hello, World!\0";
-unsigned char color = 0x1f;
-unsigned short* vga_addr = (unsigned short*)0xb8000;
+#include "i386/idt.h"
+#include "drv/vga.h"
+#include "i386/pic.h"
+#include "i386/pit.h"
 void kmain() {
-    for (int i = 0; i < 80*25; i++) {
-      vga_addr[i] = (color << 8) | ' ';
-    }
-
-    for (int i = 0; str[i] != '\0'; i++) {
-      vga_addr[i] = (color << 8) | str[i];
-    }
+    kprintf("GDT Initing...\n");
     init_gdt();
+    kprintf("GDT OK\n");
+    kprintf("IDT Initing...\n");
+    idt_install();
+    pic_remap();
+    pit_init();
+    kprintf("IDT OK\n");
+    asm volatile("sti");
+    while (1) {
+	asm volatile("sti; hlt");
+    }
 }
 
