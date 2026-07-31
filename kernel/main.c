@@ -4,6 +4,7 @@
 #include "i386/pic.h"
 #include "i386/pit.h"
 #include "mm/pmm.h"
+#include "i386/vmm.h"
 
 void kmain() {
     kprintf("GDT Initing...\n");
@@ -17,7 +18,7 @@ void kmain() {
     kprintf("IDT OK\n");
 
     pmm_init();
-
+    init_paging();
     asm volatile("sti");
 
     while (1) {
