@@ -1,4 +1,5 @@
 #include "../lib/types.h"
+#include "../i386/panic.h"
 #define PMM_MAX_PAGES 32768 // 128 mb
 uint8_t pmm_bitmap[PMM_MAX_PAGES / 8];
 
@@ -19,6 +20,7 @@ void* pmm_alloc() {
             return (void*)(i * 4096 + 0x100000);
         }
     }
+    panic("Out of Memory");
     return NULL;
 }
 
@@ -45,5 +47,6 @@ void* pmm_alloc_pages(int count) {
             found = 0;
         }
     }
+    panic("Out of Memory");
     return NULL;
 }
