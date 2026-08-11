@@ -16,6 +16,8 @@ section .text
 global _start
 _start:
     mov esp, stack_top
+    push ebx
+    push eax
     call kmain
     cli
 .halt:

@@ -1,4 +1,5 @@
 #pragma once
+#include "types.h"
 typedef struct {
     uint32_t flags;
     uint32_t mem_lower;

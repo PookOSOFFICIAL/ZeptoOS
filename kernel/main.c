@@ -5,8 +5,9 @@
 #include "i386/pit.h"
 #include "mm/pmm.h"
 #include "i386/vmm.h"
-
-void kmain() {
+struct multiboot_info* mb_info;
+void kmain(uint32_t magic, struct multiboot_info* info) {
+    mb_info = info;
     kprintf("GDT Initing...\n");
     init_gdt();
     kprintf("GDT OK\n");
@@ -17,7 +18,7 @@ void kmain() {
     pit_init();
     kprintf("IDT OK\n");
 
-    pmm_init();
+    pmm_init(mb_info);
     init_paging();
     asm volatile("sti");
 
