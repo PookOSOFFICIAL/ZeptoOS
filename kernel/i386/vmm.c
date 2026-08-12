@@ -28,9 +28,9 @@ void init_paging(void) {
     uint32_t pt_phys = (uint32_t)pmm_alloc();
     uint32_t* pt_virt = (uint32_t*)pt_phys;
     for (int i = 0; i < 1024; i++) {
-        pt_virt[i] = (i * PAGE_SIZE) | PAGE_PRESENT | PAGE_WRITE;
+        pt_virt[i] = (i * PAGE_SIZE) | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
     }
-    kernel_pd->entries[0] = pt_phys | PAGE_PRESENT | PAGE_WRITE;
+    kernel_pd->entries[0] = pt_phys | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
     
     current_pd = kernel_pd;
     asm volatile("mov %0, %%cr3" : : "r"((uint32_t)kernel_pd));

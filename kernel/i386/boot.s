@@ -3,8 +3,8 @@ extern kmain
 section .multiboot
 align 4
 dd 0x1BADB002
-dd 3                    ; 1<<0 | 1<<1 = 3
-dd -0x1BADB005          ; -(0x1BADB002 + 3)
+dd 3
+dd -0x1BADB005
 
 section .bss
 align 16

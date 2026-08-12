@@ -22,5 +22,5 @@ void timer_handler() {
         seconds++;
 	kprintf("Tick\n");
     }
-    outb(0x20, 0x20);  // coloca isso se nao o kernel explode
+    outb(0x20, 0x20);
 }

@@ -10,14 +10,23 @@
 
 struct multiboot_info* mb_info;
 
-void task_entry() {
-    uint32_t pid = get_current_pid();
-    while (1) {
-	kprintf("Task: ");
-        print_pid(pid);
-	kprintf("\n");
-        for (volatile int i = 0; i < 2000000; i++);
-    }
+void user_hello_task() {
+    char *msg = "Hello World from Ring 3!\n";
+    int len = 25;
+    asm volatile(
+        "mov $4, %%eax\n"
+        "mov $1, %%ebx\n"
+        "mov %0, %%ecx\n"
+        "mov %1, %%edx\n"
+        "int $0x80\n"
+        "mov $1, %%eax\n"
+        "xor %%ebx, %%ebx\n"
+        "int $0x80\n"
+        :
+        : "r"(msg), "r"(len)
+        : "eax", "ebx", "ecx", "edx", "memory"
+    );
+    while (1);
 }
 
 void kmain(uint32_t magic, struct multiboot_info* info) {
@@ -31,9 +40,7 @@ void kmain(uint32_t magic, struct multiboot_info* info) {
     serial_init();
 
     scheduler_init();
-    for (int i = 0; i < 10; i++) {
-        task_create(task_entry);
-    }
+    task_create_user(user_hello_task);
 
     asm volatile("sti");
 

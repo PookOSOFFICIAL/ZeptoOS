@@ -6,12 +6,14 @@
 typedef struct {
     uint32_t esp;
     uint32_t pid;
-    uint8_t stack[4096];
+    uint8_t kernel_stack[4096];
+    uint8_t user_stack[4096];
     uint32_t active;
 } task_t;
 
 void scheduler_init();
-void task_create(void (*entry_point)());
+void task_create_user(void (*entry_point)());
+void task_exit();
 uint32_t schedule(uint32_t esp);
 uint32_t get_current_pid();
 void print_pid(uint32_t pid);
