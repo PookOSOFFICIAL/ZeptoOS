@@ -3,44 +3,53 @@
 #include "../i386/panic.h"
 
 extern multiboot_info_t* mb_info;
+extern uint32_t _kernel_end;
+
 #define BIT_SET(a, i) ((a)[(i) / 8] |= (1 << ((i) % 8)))
 #define BIT_TEST(a, i) ((a)[(i) / 8] & (1 << ((i) % 8)))
-#define PMM_MAX_PAGES (4 * 1024 * 1024 / 4096)
+#define PMM_MAX_PAGES (16 * 1024 * 1024 / 4096)
 uint8_t pmm_bitmap[PMM_MAX_PAGES / 8];
 
 void pmm_init(multiboot_info_t* mb) {
-    if (!(mb->flags & (1 << 6))) {
-        return;
-    }
-
     for (int i = 0; i < PMM_MAX_PAGES / 8; i++) {
         pmm_bitmap[i] = 0xFF;
     }
 
-    multiboot_mmap_entry_t* mmap = (multiboot_mmap_entry_t*)mb->mmap_addr;
-    uint32_t mmap_end = mb->mmap_addr + mb->mmap_length;
+    if (mb->flags & (1 << 6)) {
+        multiboot_mmap_entry_t* mmap = (multiboot_mmap_entry_t*)mb->mmap_addr;
+        uint32_t mmap_end = mb->mmap_addr + mb->mmap_length;
 
-    while ((uint32_t)mmap < mmap_end) {
-        if (mmap->type == 1) {
-            uint64_t base = mmap->base_addr;
-            uint64_t length = mmap->length;
+        while ((uint32_t)mmap < mmap_end) {
+            if (mmap->type == 1) {
+                uint32_t start_page = (uint32_t)(mmap->base_addr / 4096);
+                uint32_t end_page = (uint32_t)((mmap->base_addr + mmap->length) / 4096);
+                for (uint32_t i = start_page; i < end_page && i < PMM_MAX_PAGES; i++) {
+                    pmm_bitmap[i / 8] &= ~(1 << (i % 8));
+                }
+            }
+            mmap = (multiboot_mmap_entry_t*)((uint32_t)mmap + mmap->size + 4);
+        }
+    }
 
-            uint32_t start_page = (base + 0xFFF) / 4096;
-            uint32_t end_page = (base + length) / 4096;
+    for (uint32_t i = 0; i < 0x100; i++) {
+        pmm_bitmap[i / 8] |= (1 << (i % 8));
+    }
 
-            for (uint32_t i = start_page; i < end_page && i < PMM_MAX_PAGES; i++) {
-                pmm_bitmap[i / 8] &= ~(1 << (i % 8));
+    uint32_t k_start = 0x100000 / 4096;
+    uint32_t k_end = ((uint32_t)&_kernel_end + 4095) / 4096;
+    for (uint32_t i = k_start; i < k_end && i < PMM_MAX_PAGES; i++) {
+        pmm_bitmap[i / 8] |= (1 << (i % 8));
+    }
+
+    if (mb->flags & (1 << 3)) {
+        multiboot_module_t* mod = (multiboot_module_t*)mb->mods_addr;
+        for (uint32_t m = 0; m < mb->mods_count; m++) {
+            uint32_t m_start = mod[m].mod_start / 4096;
+            uint32_t m_end = (mod[m].mod_end + 4095) / 4096;
+            for (uint32_t i = m_start; i < m_end && i < PMM_MAX_PAGES; i++) {
+                pmm_bitmap[i / 8] |= (1 << (i % 8));
             }
         }
-        mmap = (multiboot_mmap_entry_t*)((uint32_t)mmap + mmap->size + 4);
-    }
-
-    for (uint32_t i = 0x10000; i < 0x100000 / 4096; i++) {
-        pmm_bitmap[i / 8] |= (1 << (i % 8));
-    }
-
-    for (uint32_t i = (uint32_t)mb_info / 4096; i < ((uint32_t)mb_info + sizeof(multiboot_info_t) + 4095) / 4096; i++) {
-        pmm_bitmap[i / 8] |= (1 << (i % 8));
     }
 }
 

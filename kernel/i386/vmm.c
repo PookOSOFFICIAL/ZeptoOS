@@ -14,7 +14,7 @@ static uint32_t* get_page_table(page_directory_t* pd, uint32_t virt, int create)
         uint32_t pt_phys = (uint32_t)pmm_alloc();
         uint32_t* pt_virt = (uint32_t*)pt_phys;
         for (int i = 0; i < 1024; i++) pt_virt[i] = 0;
-        pd->entries[pd_idx] = pt_phys | PAGE_PRESENT | PAGE_WRITE;
+        pd->entries[pd_idx] = pt_phys | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
     }
     
     uint32_t pt_phys = pd->entries[pd_idx] & 0xFFFFF000;
@@ -25,12 +25,9 @@ void init_paging(void) {
     kernel_pd = (page_directory_t*)pmm_alloc();
     for (int i = 0; i < 1024; i++) kernel_pd->entries[i] = 0;
     
-    uint32_t pt_phys = (uint32_t)pmm_alloc();
-    uint32_t* pt_virt = (uint32_t*)pt_phys;
-    for (int i = 0; i < 1024; i++) {
-        pt_virt[i] = (i * PAGE_SIZE) | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
+    for (uint32_t addr = 0; addr < 0x1000000; addr += 0x1000) {
+        vmm_map_page(kernel_pd, addr, addr, PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
     }
-    kernel_pd->entries[0] = pt_phys | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
     
     current_pd = kernel_pd;
     asm volatile("mov %0, %%cr3" : : "r"((uint32_t)kernel_pd));
@@ -44,11 +41,9 @@ void init_paging(void) {
 page_directory_t* vmm_create_address_space(void) {
     page_directory_t* pd = (page_directory_t*)pmm_alloc();
     for (int i = 0; i < 1024; i++) pd->entries[i] = 0;
-    
-    for (int i = 0; i < 768; i++) {
+    for (int i = 0; i < 1024; i++) {
         pd->entries[i] = kernel_pd->entries[i];
     }
-    
     return pd;
 }
 
@@ -82,10 +77,8 @@ void vmm_clone_address_space(page_directory_t* src, page_directory_t* dst) {
         if (src->entries[i] & PAGE_PRESENT) {
             uint32_t src_pt_phys = src->entries[i] & 0xFFFFF000;
             uint32_t* src_pt = (uint32_t*)src_pt_phys;
-            
             uint32_t dst_pt_phys = (uint32_t)pmm_alloc();
             uint32_t* dst_pt = (uint32_t*)dst_pt_phys;
-            
             for (int j = 0; j < 1024; j++) {
                 if (src_pt[j] & PAGE_PRESENT) {
                     uint32_t phys = src_pt[j] & 0xFFFFF000;
@@ -95,7 +88,6 @@ void vmm_clone_address_space(page_directory_t* src, page_directory_t* dst) {
                     dst_pt[j] = 0;
                 }
             }
-            
             dst->entries[i] = dst_pt_phys | (src->entries[i] & ~0xFFFFF000);
         }
     }
