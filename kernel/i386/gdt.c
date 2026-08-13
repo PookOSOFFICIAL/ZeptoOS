@@ -1,12 +1,12 @@
-#include <stdint.h>
+#include "../lib/types.h"
 
 struct gdt_entry {
     uint16_t limit_low;
     uint16_t base_low;
-    uint8_t  base_middle;
-    uint8_t  access;
-    uint8_t  granularity;
-    uint8_t  base_high;
+    uint8_t base_middle;
+    uint8_t access;
+    uint8_t granularity;
+    uint8_t base_high;
 } __attribute__((packed));
 
 struct gdt_ptr {
@@ -44,37 +44,29 @@ struct tss_entry {
     uint16_t iomap_base;
 } __attribute__((packed));
 
-struct gdt_entry gdt[6];
-struct gdt_ptr gp;
-struct tss_entry tss;
+static struct gdt_entry gdt[6];
+static struct gdt_ptr gdt_pointer;
+static struct tss_entry tss;
 
-extern void gdt_flush(uint32_t);
+extern void gdt_flush(uint32_t pointer);
 extern void tss_flush(void);
 
-void gdt_set_gate(int num, uint32_t base, uint32_t limit, uint8_t access, uint8_t gran)
-{
-    gdt[num].base_low    = (base & 0xFFFF);
-    gdt[num].base_middle = (base >> 16) & 0xFF;
-    gdt[num].base_high   = (base >> 24) & 0xFF;
-
-    gdt[num].limit_low   = (limit & 0xFFFF);
-    gdt[num].granularity = (limit >> 16) & 0x0F;
-
-    gdt[num].granularity |= gran & 0xF0;
-    gdt[num].access       = access;
+static void gdt_set_gate(int index, uint32_t base, uint32_t limit, uint8_t access, uint8_t granularity) {
+    gdt[index].base_low = base & 0xFFFF;
+    gdt[index].base_middle = (base >> 16) & 0xFF;
+    gdt[index].base_high = (base >> 24) & 0xFF;
+    gdt[index].limit_low = limit & 0xFFFF;
+    gdt[index].granularity = ((limit >> 16) & 0x0F) | (granularity & 0xF0);
+    gdt[index].access = access;
 }
 
-void write_tss(int num, uint16_t ss0, uint32_t esp0)
-{
-    uint32_t base = (uint32_t)&tss;
-    uint32_t limit = base + sizeof(struct tss_entry);
-
-    gdt_set_gate(num, base, limit, 0x89, 0x40);
-
-    for (int i = 0; i < sizeof(struct tss_entry); i++) {
-        ((char*)&tss)[i] = 0;
+static void write_tss(int index, uint16_t ss0, uint32_t esp0) {
+    uint32_t base = (uint32_t)(uintptr_t)&tss;
+    uint32_t limit = sizeof(tss) - 1;
+    gdt_set_gate(index, base, limit, 0x89, 0x40);
+    for (uint32_t i = 0; i < sizeof(tss); i++) {
+        ((uint8_t*)&tss)[i] = 0;
     }
-
     tss.ss0 = ss0;
     tss.esp0 = esp0;
     tss.cs = 0x08;
@@ -83,27 +75,22 @@ void write_tss(int num, uint16_t ss0, uint32_t esp0)
     tss.es = 0x10;
     tss.fs = 0x10;
     tss.gs = 0x10;
-    tss.iomap_base = sizeof(struct tss_entry);
+    tss.iomap_base = sizeof(tss);
 }
 
-void set_kernel_stack(uint32_t stack)
-{
-    tss.esp0 = stack;
+void set_kernel_stack(uintptr_t stack) {
+    tss.esp0 = (uint32_t)stack;
 }
 
-void init_gdt()
-{
-    gp.limit = (sizeof(struct gdt_entry) * 6) - 1;
-    gp.base  = (uint32_t)&gdt;
-
+void init_gdt(void) {
+    gdt_pointer.limit = sizeof(gdt) - 1;
+    gdt_pointer.base = (uint32_t)(uintptr_t)&gdt;
     gdt_set_gate(0, 0, 0, 0, 0);
     gdt_set_gate(1, 0, 0xFFFFFFFF, 0x9A, 0xCF);
     gdt_set_gate(2, 0, 0xFFFFFFFF, 0x92, 0xCF);
     gdt_set_gate(3, 0, 0xFFFFFFFF, 0xFA, 0xCF);
     gdt_set_gate(4, 0, 0xFFFFFFFF, 0xF2, 0xCF);
-
     write_tss(5, 0x10, 0);
-
-    gdt_flush((uint32_t)&gp);
+    gdt_flush((uint32_t)(uintptr_t)&gdt_pointer);
     tss_flush();
 }

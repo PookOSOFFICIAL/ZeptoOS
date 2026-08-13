@@ -6,50 +6,46 @@
 #include "../lib/types.h"
 
 struct regs {
-    uint32_t gs;
-    uint32_t fs;
-    uint32_t es;
-    uint32_t ds;
-    uint32_t edi;
-    uint32_t esi;
-    uint32_t ebp;
-    uint32_t esp_dummy;
-    uint32_t ebx;
-    uint32_t edx;
-    uint32_t ecx;
-    uint32_t eax;
-    uint32_t int_no;
-    uint32_t err_code;
-    uint32_t eip;
-    uint32_t cs;
-    uint32_t eflags;
-    uint32_t useresp;
-    uint32_t ss;
+    uint64_t r15;
+    uint64_t r14;
+    uint64_t r13;
+    uint64_t r12;
+    uint64_t r11;
+    uint64_t r10;
+    uint64_t r9;
+    uint64_t r8;
+    uint64_t rdi;
+    uint64_t rsi;
+    uint64_t rbp;
+    uint64_t rdx;
+    uint64_t rcx;
+    uint64_t rbx;
+    uint64_t rax;
 };
 
 struct linux_dirent {
-    uint32_t d_ino;
-    uint32_t d_off;
+    uint64_t d_ino;
+    uint64_t d_off;
     uint16_t d_reclen;
     char d_name[];
 };
 
-static int sys_write(int fd, const char* buf, uint32_t len) {
+static int64_t sys_write(int fd, const char* buf, uint64_t len) {
     if (fd == 1 || fd == 2) {
-        for (uint32_t i = 0; i < len; i++) {
+        for (uint64_t i = 0; i < len; i++) {
             char str[2] = {buf[i], '\0'};
             kprintf(str);
         }
-        return (int)len;
+        return (int64_t)len;
     }
     return -1;
 }
 
-static int sys_read(int fd, char* buf, uint32_t len) {
+static int64_t sys_read(int fd, char* buf, uint64_t len) {
     if (fd != 0) {
         return 0;
     }
-    uint32_t written = 0;
+    uint64_t written = 0;
     while (written < len) {
         char c = keyboard_get_char();
         if (c == '\b') {
@@ -62,16 +58,16 @@ static int sys_read(int fd, char* buf, uint32_t len) {
         if (c == '\n' || c == '\r') {
             buf[written++] = '\n';
             kprintf("\n");
-            return (int)written;
+            return (int64_t)written;
         }
         buf[written++] = c;
         char echo[2] = {c, '\0'};
         kprintf(echo);
     }
-    return (int)written;
+    return (int64_t)written;
 }
 
-static int sys_open(const char* path, int flags, int mode) {
+static int64_t sys_open(const char* path, int flags, int mode) {
     (void)flags;
     (void)mode;
     if (!vfs_resolve_path(path)) {
@@ -80,12 +76,12 @@ static int sys_open(const char* path, int flags, int mode) {
     return 3;
 }
 
-static int sys_close(int fd) {
+static int64_t sys_close(int fd) {
     (void)fd;
     return 0;
 }
 
-static int sys_getdents(unsigned int fd, struct linux_dirent* dirp, unsigned int count) {
+static int64_t sys_getdents(unsigned int fd, struct linux_dirent* dirp, unsigned int count) {
     (void)fd;
     struct vfs_node* node = vfs_root();
     if (!node) {
@@ -100,7 +96,7 @@ static int sys_getdents(unsigned int fd, struct linux_dirent* dirp, unsigned int
             name_len++;
         }
         uint16_t reclen = (uint16_t)(sizeof(struct linux_dirent) + name_len + 1);
-        reclen = (uint16_t)((reclen + 3) & ~3);
+        reclen = (uint16_t)((reclen + 7) & ~7);
         if (pos + reclen > count) {
             break;
         }
@@ -115,30 +111,30 @@ static int sys_getdents(unsigned int fd, struct linux_dirent* dirp, unsigned int
         pos += reclen;
         index++;
     }
-    return (int)pos;
+    return pos;
 }
 
-static int sys_mount(const char* special, const char* dir, const char* fstype, uint32_t flags, const void* data) {
+static int64_t sys_mount(const char* special, const char* dir, const char* fstype, uint64_t flags, const void* data) {
     (void)special;
     (void)fstype;
     (void)flags;
     return vfs_mount(dir, (struct vfs_node*)data);
 }
 
-static int sys_umount(const char* special, int flags) {
+static int64_t sys_umount(const char* special, int flags) {
     (void)flags;
     return vfs_umount(special);
 }
 
-static int sys_mkdir(const char* pathname, int mode) {
+static int64_t sys_mkdir(const char* pathname, int mode) {
     return vfs_mkdir(pathname, mode);
 }
 
-static int sys_link(const char* oldpath, const char* newpath) {
+static int64_t sys_link(const char* oldpath, const char* newpath) {
     return vfs_link(oldpath, newpath);
 }
 
-static int sys_unlink(const char* pathname) {
+static int64_t sys_unlink(const char* pathname) {
     return vfs_unlink(pathname);
 }
 
@@ -148,42 +144,42 @@ static void sys_exit(int code) {
 }
 
 void syscall_handler(struct regs* regs) {
-    switch (regs->eax) {
+    switch (regs->rax) {
         case 1:
-            sys_exit((int)regs->ebx);
+            sys_exit((int)regs->rdi);
             break;
         case 3:
-            regs->eax = sys_read((int)regs->ebx, (char*)(uintptr_t)regs->ecx, regs->edx);
+            regs->rax = sys_read((int)regs->rdi, (char*)(uintptr_t)regs->rsi, regs->rdx);
             break;
         case 4:
-            regs->eax = sys_write((int)regs->ebx, (const char*)(uintptr_t)regs->ecx, regs->edx);
+            regs->rax = sys_write((int)regs->rdi, (const char*)(uintptr_t)regs->rsi, regs->rdx);
             break;
         case 5:
-            regs->eax = sys_open((const char*)(uintptr_t)regs->ebx, (int)regs->ecx, (int)regs->edx);
+            regs->rax = sys_open((const char*)(uintptr_t)regs->rdi, (int)regs->rsi, (int)regs->rdx);
             break;
         case 6:
-            regs->eax = sys_close((int)regs->ebx);
+            regs->rax = sys_close((int)regs->rdi);
             break;
         case 9:
-            regs->eax = sys_link((const char*)(uintptr_t)regs->ebx, (const char*)(uintptr_t)regs->ecx);
+            regs->rax = sys_link((const char*)(uintptr_t)regs->rdi, (const char*)(uintptr_t)regs->rsi);
             break;
         case 10:
-            regs->eax = sys_unlink((const char*)(uintptr_t)regs->ebx);
+            regs->rax = sys_unlink((const char*)(uintptr_t)regs->rdi);
             break;
         case 21:
-            regs->eax = sys_mount((const char*)(uintptr_t)regs->ebx, (const char*)(uintptr_t)regs->ecx, (const char*)(uintptr_t)regs->edx, 0, NULL);
+            regs->rax = sys_mount((const char*)(uintptr_t)regs->rdi, (const char*)(uintptr_t)regs->rsi, (const char*)(uintptr_t)regs->rdx, 0, NULL);
             break;
         case 22:
-            regs->eax = sys_umount((const char*)(uintptr_t)regs->ebx, (int)regs->ecx);
+            regs->rax = sys_umount((const char*)(uintptr_t)regs->rdi, (int)regs->rsi);
             break;
         case 39:
-            regs->eax = sys_mkdir((const char*)(uintptr_t)regs->ebx, (int)regs->ecx);
+            regs->rax = sys_mkdir((const char*)(uintptr_t)regs->rdi, (int)regs->rsi);
             break;
         case 141:
-            regs->eax = sys_getdents(regs->ebx, (struct linux_dirent*)(uintptr_t)regs->ecx, regs->edx);
+            regs->rax = sys_getdents((unsigned int)regs->rdi, (struct linux_dirent*)(uintptr_t)regs->rsi, (unsigned int)regs->rdx);
             break;
         default:
-            regs->eax = (uint32_t)-1;
+            regs->rax = (uint64_t)-1;
             break;
     }
 }

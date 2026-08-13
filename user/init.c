@@ -1,44 +1,50 @@
 struct linux_dirent {
-    unsigned long  d_ino;
-    unsigned long  d_off;
+    unsigned long d_ino;
+    unsigned long d_off;
     unsigned short d_reclen;
-    char           d_name[];
+    char d_name[];
 };
 
-int sys_write(int fd, const char *buf, int len) {
-    int ret;
-    __asm__ volatile(
-        "int $0x80"
-        : "=a" (ret)
-        : "a" (4), "b" (fd), "c" (buf), "d" (len)
-        : "memory"
-    );
-    return ret;
+static int string_length(const char* str) {
+    int length = 0;
+    while (str[length]) {
+        length++;
+    }
+    return length;
 }
 
-int sys_read(int fd, char *buf, int len) {
-    int ret;
+static long syscall3(long number, long arg1, long arg2, long arg3) {
+#if defined(__x86_64__)
     __asm__ volatile(
         "int $0x80"
-        : "=a" (ret)
-        : "a" (3), "b" (fd), "c" (buf), "d" (len)
-        : "memory"
+        : "+a"(number)
+        : "D"(arg1), "S"(arg2), "d"(arg3)
+        : "memory", "cc"
     );
-    return ret;
-}
-
-int sys_getdents(unsigned int fd, struct linux_dirent *dirp, unsigned int count) {
-    int ret;
+#else
     __asm__ volatile(
         "int $0x80"
-        : "=a" (ret)
-        : "a" (141), "b" (fd), "c" (dirp), "d" (count)
-        : "memory"
+        : "+a"(number)
+        : "b"(arg1), "c"(arg2), "d"(arg3)
+        : "memory", "cc"
     );
-    return ret;
+#endif
+    return number;
 }
 
-int string_compare(const char *s1, const char *s2) {
+static long sys_write(int fd, const char* buf, int len) {
+    return syscall3(4, fd, (long)buf, len);
+}
+
+static long sys_read(int fd, char* buf, int len) {
+    return syscall3(3, fd, (long)buf, len);
+}
+
+static long sys_getdents(unsigned int fd, struct linux_dirent* dirp, unsigned int count) {
+    return syscall3(141, fd, (long)dirp, count);
+}
+
+static int string_compare(const char* s1, const char* s2) {
     while (*s1 && (*s1 == *s2)) {
         s1++;
         s2++;
@@ -46,47 +52,48 @@ int string_compare(const char *s1, const char *s2) {
     return *(const unsigned char*)s1 - *(const unsigned char*)s2;
 }
 
-void _start() {
+static void write_string(const char* str) {
+    sys_write(1, str, string_length(str));
+}
+
+void _start(void) {
     char buf[128];
-    sys_write(1, "ZeptoOS Shell v1.0\n", 19);
-
-    while (1) {
-        sys_write(1, "zepto> ", 7);
-        int len = sys_read(0, buf, 127);
-        if (len <= 0) continue;
-
+    write_string("ZeptoOS Shell v1.0\n");
+    for (;;) {
+        write_string("zepto> ");
+        int len = (int)sys_read(0, buf, 127);
+        if (len <= 0) {
+            continue;
+        }
         buf[len - 1] = '\0';
         if (len > 1 && buf[len - 2] == '\r') {
             buf[len - 2] = '\0';
         }
-
         if (string_compare(buf, "help") == 0) {
-            sys_write(1, "Available commands: help, ls, hello, clear, exit\n", 49);
+            write_string("Available commands: help, ls, hello, clear, exit\n");
         } else if (string_compare(buf, "ls") == 0) {
             char dbuf[1024];
-            int nread = sys_getdents(0, (struct linux_dirent*)dbuf, 1024);
+            int nread = (int)sys_getdents(0, (struct linux_dirent*)dbuf, sizeof(dbuf));
             int bpos = 0;
             while (bpos < nread) {
-                struct linux_dirent *d = (struct linux_dirent*)(dbuf + bpos);
-                sys_write(1, d->d_name, 0);
-                int k = 0;
-                while (d->d_name[k] != '\0') k++;
-                sys_write(1, "\n", 1);
+                struct linux_dirent* d = (struct linux_dirent*)(dbuf + bpos);
+                write_string(d->d_name);
+                write_string("\n");
                 bpos += d->d_reclen;
             }
         } else if (string_compare(buf, "hello") == 0) {
-            sys_write(1, "Hello World With File System\n", 29);
+            write_string("Hello World With File System\n");
         } else if (string_compare(buf, "clear") == 0) {
-            sys_write(1, "\033[2J\033[H", 7);
+            write_string("\033[2J\033[H");
         } else if (string_compare(buf, "exit") == 0) {
-            sys_write(1, "Goodbye!\n", 9);
+            write_string("Goodbye!\n");
             break;
         } else if (buf[0] != '\0') {
-            sys_write(1, "Unknown command: ", 17);
-            sys_write(1, buf, 0);
-            sys_write(1, "\n", 1);
+            write_string("Unknown command: ");
+            write_string(buf);
+            write_string("\n");
         }
     }
-
-    while (1);
+    for (;;) {
+    }
 }
